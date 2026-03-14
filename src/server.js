@@ -1,46 +1,33 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const mongoose = require('mongoose');
-
-const authRoutes = require('./routes/auth');
-const userRoutes = require('./routes/users');
-const bookmarkRoutes = require('./routes/bookmarks');
-const tagRoutes = require('./routes/tags');
+const connectDB = require('./infrastructure/config/db');
+const routes = require('./presentation/routes');
+const errorHandler = require('./presentation/middlewares/errorHandler');
 
 const app = express();
 
 // Middleware
 app.use(cors({
-  origin: process.env.CLIENT_URL || '*',
+  origin: process.env.CLIENT_URL || 'http://localhost:5173',
   credentials: true
 }));
 app.use(express.json());
 
 // Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/bookmarks', bookmarkRoutes);
-app.use('/api/tags', tagRoutes);
+app.use('/api', routes);
 
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', time: new Date().toISOString() });
-});
+// Global Error Handler (must be last)
+app.use(errorHandler);
 
-// MongoDB connection + start server
+// Connect to DB and Start Server
 const PORT = process.env.PORT || 5000;
 
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => {
-    console.log('✅ Connected to MongoDB');
-    app.listen(PORT, () => {
-      console.log(`🚀 Server running on http://localhost:${PORT}`);
-    });
-  })
-  .catch(err => {
-    console.error('❌ MongoDB connection error:', err.message);
-    process.exit(1);
+connectDB().then(() => {
+  app.listen(PORT, () => {
+    console.log(`🚀 Linkvault Clean API running on port ${PORT}`);
   });
-
-module.exports = app;
+}).catch(err => {
+  console.error('❌ Database connection failed:', err);
+  process.exit(1);
+});
