@@ -11,8 +11,7 @@ const app = express();
 const allowedOrigins = [
   process.env.CLIENT_URL,
   'http://localhost:5173',
-  'https://link-vault-front.vercel.app', // Common deployment pattern
-  'https://link-vault-front.netlify.app'
+  'https://linkbunker.netlify.app',
 ].filter(Boolean);
 
 app.use(cors({
