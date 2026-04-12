@@ -1,15 +1,17 @@
-const bcrypt = require('bcryptjs');
 const userRepository = require('../../../infrastructure/database/repositories/UserRepository');
 const { UnauthorizedError } = require('../../../shared/errors');
-const { createRefreshSession, serializeUser } = require('../../../shared/auth/session');
+const { createRefreshSession, hashToken, serializeUser } = require('../../../shared/auth/session');
 
-class LoginUser {
-  async execute({ email, password }) {
-    const user = await userRepository.findByEmail((email || '').trim().toLowerCase());
-    if (!user) throw new UnauthorizedError('Invalid email or password');
+class RefreshSession {
+  async execute(refreshToken) {
+    if (!refreshToken) {
+      throw new UnauthorizedError('Session has expired. Please sign in again.');
+    }
 
-    const isMatch = await bcrypt.compare(password, user.password_hash);
-    if (!isMatch) throw new UnauthorizedError('Invalid email or password');
+    const user = await userRepository.findByRefreshTokenHash(hashToken(refreshToken));
+    if (!user) {
+      throw new UnauthorizedError('Session has expired. Please sign in again.');
+    }
 
     const session = createRefreshSession(user);
     const persistedUser = await userRepository.storeRefreshToken(user._id, {
@@ -25,4 +27,4 @@ class LoginUser {
   }
 }
 
-module.exports = new LoginUser();
+module.exports = new RefreshSession();

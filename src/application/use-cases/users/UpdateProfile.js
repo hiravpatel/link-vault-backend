@@ -16,6 +16,9 @@ class UpdateProfile {
       display_name: user.display_name,
       avatar: user.avatar,
       profile_setup_done: user.profile_setup_done,
+      role: user.role,
+      last_login_at: user.last_login_at || null,
+      password_changed_at: user.password_changed_at || null,
     };
   }
 }

@@ -1,29 +1,30 @@
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 const userRepository = require('../../../infrastructure/database/repositories/UserRepository');
-const { ConflictError, ValidationError } = require('../../../shared/errors');
+const { ConflictError } = require('../../../shared/errors');
+const { assertStrongPassword } = require('../../../shared/auth/passwords');
+const { createRefreshSession, serializeUser } = require('../../../shared/auth/session');
 
 class RegisterUser {
   async execute({ name, email, password }) {
-    // Check duplicate
-    const existing = await userRepository.findByEmail(email);
+    const normalizedEmail = (email || '').trim().toLowerCase();
+    const existing = await userRepository.findByEmail(normalizedEmail);
     if (existing) throw new ConflictError('Email is already registered');
 
-    const password_hash = await bcrypt.hash(password, 10);
-    const user = await userRepository.create({ name, email, password_hash });
+    assertStrongPassword(password);
 
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    const password_hash = await bcrypt.hash(password, 12);
+    const user = await userRepository.create({ name: name.trim(), email: normalizedEmail, password_hash });
+
+    const session = createRefreshSession(user);
+    const persistedUser = await userRepository.storeRefreshToken(user._id, {
+      refreshTokenHash: session.refreshTokenHash,
+      refreshTokenExpiresAt: session.refreshTokenExpiresAt,
+    });
 
     return {
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        display_name: user.display_name,
-        avatar: user.avatar,
-        profile_setup_done: user.profile_setup_done,
-      },
+      accessToken: session.accessToken,
+      refreshToken: session.refreshToken,
+      user: serializeUser(persistedUser),
     };
   }
 }

@@ -1,8 +1,8 @@
 const bookmarkRepository = require('../../../infrastructure/database/repositories/BookmarkRepository');
 
 class GetBookmarks {
-  async execute(userId) {
-    return bookmarkRepository.findAllByUser(userId);
+  async execute(userId, filters = {}) {
+    return bookmarkRepository.findAllByUser(userId, filters);
   }
 }
 

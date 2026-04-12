@@ -4,49 +4,63 @@ const cors = require('cors');
 const connectDB = require('./infrastructure/config/db');
 const routes = require('./presentation/routes');
 const errorHandler = require('./presentation/middlewares/errorHandler');
+const requestContext = require('./presentation/middlewares/requestContext');
+const notFound = require('./presentation/middlewares/notFound');
+const logger = require('./shared/utils/logger');
 
 const app = express();
 
-// Middleware
 const allowedOrigins = [
   process.env.CLIENT_URL,
   'http://localhost:5173',
   'https://linkbunker.netlify.app',
 ].filter(Boolean);
 
+app.set('trust proxy', 1);
+
+app.use(requestContext);
 app.use(cors({
   origin: (origin, callback) => {
-    // allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) === -1 && process.env.NODE_ENV === 'production') {
-      // In production, we can be more strict, but for now let's allow all during setup
-      // callback(new Error('The CORS policy for this site does not allow access from the specified Origin.'), false);
-      callback(null, true); // Allow all for now to resolve user's issue
-    } else {
-      callback(null, true);
+    if (!origin) {
+      return callback(null, true);
     }
+
+    if (process.env.NODE_ENV !== 'production') {
+      return callback(null, true);
+    }
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error('Origin is not allowed by CORS policy'));
   },
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'X-Request-Id'],
   credentials: true,
-  optionsSuccessStatus: 200
+  optionsSuccessStatus: 200,
 }));
-app.use(express.json());
+app.use(express.json({ limit: '200kb' }));
+app.use(express.urlencoded({ extended: true, limit: '200kb' }));
 
-// Routes
 app.use('/api', routes);
-
-// Global Error Handler (must be last)
+app.use(notFound);
 app.use(errorHandler);
 
-// Connect to DB and Start Server
 const PORT = process.env.PORT || 5000;
 
 connectDB().then(() => {
   app.listen(PORT, () => {
-    console.log(`🚀 Linkvault Clean API running on port ${PORT}`);
+    logger.info('server.started', {
+      port: PORT,
+      environment: process.env.NODE_ENV || 'development',
+      allowedOrigins,
+    });
   });
 }).catch(err => {
-  console.error('❌ Database connection failed:', err);
+  logger.error('server.startup_failed', {
+    message: err.message,
+    stack: err.stack,
+  });
   process.exit(1);
 });
